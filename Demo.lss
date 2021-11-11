@@ -1,0 +1,112 @@
+Option Public
+Option Declare
+
+
+Public Const W32_LIB = {nnotes.dll}
+Public Const LINUX_LIB = {libnotes.so}
+
+Declare Function W32_NSFDbOpen Lib W32_LIB Alias {NSFDbOpen} (ByVal dbName As String, hDb As Long) As Integer
+Declare Function W32_NSFDbClose Lib W32_LIB Alias {NSFDbClose} (ByVal hDb As Long) As Integer
+Declare Function W32_NSFDbClearReplHistory Lib W32_LIB Alias {NSFDbClearReplHistory} (ByVal hDb As Long, flags As Integer) As Integer
+
+Declare Function LINUX_NSFDbOpen Lib LINUX_LIB Alias {NSFDbOpen} (ByVal dbName As String, hDb As Long) As Integer
+Declare Function LINUX_NSFDbClose Lib LINUX_LIB Alias {NSFDbClose} (ByVal hDb As Long) As Integer
+Declare Function LINUX_NSFDbClearReplHistory Lib LINUX_LIB Alias {NSFDbClearReplHistory} (ByVal hDb As Long, flags As Integer) As Integer
+
+Dim IS_WINDOWS As Boolean
+	
+Sub Initialize
+	On Error GoTo errh
+	
+	Dim session As NotesSession
+	Dim database As NotesDatabase
+	Dim col As NotesDocumentCollection
+	Dim doc As NotesDocument
+	Dim dnow As Variant
+	Dim server As String
+	Dim filepath As String
+	Dim counter As integer
+	Dim res As boolean
+	
+	Print "replication history cleaner: started"
+	
+	Set session = New NotesSession
+	Set database = session.Currentdatabase
+	Set col = database.search({Form = "Database"}, Nothing, 0)
+	dnow = Now()
+	IS_WINDOWS = InStr(session.Platform, "Windows") <> 0
+	
+	Print "> databases: " & CStr(col.count)
+	
+	Set doc = col.Getfirstdocument()
+	While Not doc Is Nothing
+		counter = counter + 1
+		server = doc.Getitemvalue("Server")(0)
+		filePath = doc.Getitemvalue("FilePath")(0)
+
+		Print "> " & CStr(counter), server & "!!" & filePath
+
+		res = processDb(server, filePath)
+		
+		Call doc.Replaceitemvalue("ProcessedStatus", CStr(abs(res)))
+		Call doc.Replaceitemvalue("ProcessedDate", dnow)
+		Call doc.save(True, false)
+		
+		Set doc = col.Getnextdocument(doc)
+	Wend
+	
+final:
+	Print "replication history cleaner: comlpeted"
+	
+	Exit sub
+errh:
+	MsgBox Error$ & " at line: " & CStr(Erl)
+	Resume final
+End Sub
+Sub Terminate
+	
+End Sub
+
+Function processDb(server As String, filename As String) As Boolean
+	On Error GoTo errh
+	
+	Dim hdb As Long
+	Dim rc As Integer
+	Dim res As integer
+
+	If Server = "" Then
+		If IS_WINDOWS Then
+			rc = W32_NSFDbOpen(FileName, hDb)
+		Else
+			rc = LINUX_NSFDbOpen(FileName, hDb)
+		End If
+	Else
+		If IS_WINDOWS Then
+			rc = W32_NSFDbOpen(Server & "!!" & FileName, hDb)
+		Else
+			rc = LINUX_NSFDbOpen(Server & "!!" & FileName, hDb)
+		End If
+	End If
+
+	If rc = 0 Then
+		If IS_WINDOWS Then
+			res = W32_NSFDbClearReplHistory(hDb, 0)
+		Else
+			res = LINUX_NSFDbClearReplHistory(hDb, 0)
+		End If
+	End If
+
+	If IS_WINDOWS Then
+		rc = W32_NSFDbClose(hDb)
+	Else
+		rc = LINUX_NSFDbClose(hDb)
+	End If
+	
+	processDb = res
+	
+final:
+	Exit Function
+errh:
+	Error Err, Error$
+	Resume final
+End Function
