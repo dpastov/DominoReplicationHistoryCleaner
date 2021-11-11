@@ -72,7 +72,6 @@ Function processDb(server As String, filename As String) As Boolean
 	
 	Dim hdb As Long
 	Dim rc As Integer
-	Dim res As integer
 
 	If Server = "" Then
 		If IS_WINDOWS Then
@@ -88,12 +87,18 @@ Function processDb(server As String, filename As String) As Boolean
 		End If
 	End If
 
-	If rc = 0 Then
-		If IS_WINDOWS Then
-			res = W32_NSFDbClearReplHistory(hDb, 0)
-		Else
-			res = LINUX_NSFDbClearReplHistory(hDb, 0)
-		End If
+	If rc <> 0 Then
+		Error 9001, "Database " & Server & "!!" & FileName & " - could not be opened"
+	End If
+	
+	If IS_WINDOWS Then
+		rc = W32_NSFDbClearReplHistory(hDb, 0)
+	Else
+		rc = LINUX_NSFDbClearReplHistory(hDb, 0)
+	End If
+
+	If rc <> 0 Then
+		Error 9002, "Database " & Server & "!!" & FileName & " - replication history failed"
 	End If
 
 	If IS_WINDOWS Then
@@ -102,11 +107,11 @@ Function processDb(server As String, filename As String) As Boolean
 		rc = LINUX_NSFDbClose(hDb)
 	End If
 	
-	processDb = res
+	processDb = true
 	
 final:
 	Exit Function
 errh:
-	Error Err, Error$
+	MsgBox "!! " & Error$ & " at line: " & erl
 	Resume final
 End Function
