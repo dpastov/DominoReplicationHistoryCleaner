@@ -101,17 +101,31 @@ Function processDb(server As String, filename As String) As Boolean
 		Error 9002, "Database " & Server & "!!" & FileName & " - replication history failed"
 	End If
 
+	processDb = true
+	
+final:
+	Call NSFDbClose(hdb)
+	Exit Function
+errh:
+	MsgBox "!! " & Error$ & " at line: " & erl
+	Resume final
+End Function
+
+Private Function NSFDbClose(hdb As long)
+	On Error GoTo errh
+	
+	Dim rc As Integer
+	
+	If hDb = 0 Then Exit Function
+	
 	If IS_WINDOWS Then
 		rc = W32_NSFDbClose(hDb)
 	Else
 		rc = LINUX_NSFDbClose(hDb)
 	End If
 	
-	processDb = true
-	
 final:
-	Exit Function
+	Exit function
 errh:
-	MsgBox "!! " & Error$ & " at line: " & erl
 	Resume final
 End Function
